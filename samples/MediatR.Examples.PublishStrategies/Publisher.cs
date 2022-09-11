@@ -14,7 +14,7 @@ public class Publisher
     {
         _serviceFactory = serviceFactory;
 
-        PublishStrategies[PublishStrategy.Async] = new CustomMediator(_serviceFactory, AsyncContinueOnException);
+        PublishStrategies[PublishStrategy.AsyncContinueOnException] = new CustomMediator(_serviceFactory, AsyncContinueOnException);
         PublishStrategies[PublishStrategy.ParallelNoWait] = new CustomMediator(_serviceFactory, ParallelNoWait);
         PublishStrategies[PublishStrategy.ParallelWhenAll] = new CustomMediator(_serviceFactory, ParallelWhenAll);
         PublishStrategies[PublishStrategy.ParallelWhenAny] = new CustomMediator(_serviceFactory, ParallelWhenAny);
@@ -50,6 +50,10 @@ public class Publisher
         return mediator.Publish(notification, cancellationToken);
     }
 
+    /// <summary>
+    /// Run each notification handler on thread pool using Task.Run().
+    /// Returns when all threads (handlers) are finished. In case of any exception(s), they are captured in an AggregateException by Task.WhenAll.
+    /// </summary>
     private Task ParallelWhenAll(IEnumerable<Func<INotification, CancellationToken, Task>> handlers, INotification notification, CancellationToken cancellationToken)
     {
         var tasks = new List<Task>();
@@ -62,6 +66,11 @@ public class Publisher
         return Task.WhenAll(tasks);
     }
 
+
+    /// <summary>
+    /// Run each notification handler on thread pool using Task.Run().
+    /// Returns when any thread (handler) is finished. Note that you cannot capture any exceptions (See msdn documentation of Task.WhenAny)
+    /// </summary>
     private Task ParallelWhenAny(IEnumerable<Func<INotification, CancellationToken, Task>> handlers, INotification notification, CancellationToken cancellationToken)
     {
         var tasks = new List<Task>();
@@ -74,6 +83,11 @@ public class Publisher
         return Task.WhenAny(tasks);
     }
 
+    /// <summary>
+    /// Run each notification handler on thread pool using Task.Run().
+    /// Returns immediately and does not wait for any handlers to finish.
+    /// Note that you cannot capture any exceptions, even if you await the call to Publish.
+    /// </summary>
     private Task ParallelNoWait(IEnumerable<Func<INotification, CancellationToken, Task>> handlers, INotification notification, CancellationToken cancellationToken)
     {
         foreach (var handler in handlers)
@@ -84,6 +98,11 @@ public class Publisher
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Run all notification handlers asynchronously.
+    /// Returns when all handlers are finished.
+    /// In case of any exception(s), they will be captured in an AggregateException.
+    /// </summary>
     private async Task AsyncContinueOnException(IEnumerable<Func<INotification, CancellationToken, Task>> handlers, INotification notification, CancellationToken cancellationToken)
     {
         var tasks = new List<Task>();
@@ -120,6 +139,11 @@ public class Publisher
         }
     }
 
+    /// <summary>
+    /// Run each notification handler after one another.
+    /// Returns when all handlers are finished or an exception has been thrown.
+    /// In case of an exception, any handlers after that will not be run.
+    /// </summary>
     private async Task SyncStopOnException(IEnumerable<Func<INotification, CancellationToken, Task>> handlers, INotification notification, CancellationToken cancellationToken)
     {
         foreach (var handler in handlers)
@@ -128,6 +152,10 @@ public class Publisher
         }
     }
 
+    /// <summary>
+    /// Run each notification handler after one another.
+    /// Returns when all handlers are finished. In case of any exception(s), they will be captured in an AggregateException.
+    /// </summary>
     private async Task SyncContinueOnException(IEnumerable<Func<INotification, CancellationToken, Task>> handlers, INotification notification, CancellationToken cancellationToken)
     {
         var exceptions = new List<Exception>();
